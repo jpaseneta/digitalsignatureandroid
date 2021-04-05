@@ -17,19 +17,37 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        val test = test()
-        Log.d("Result", "$test")
+        var isValid = false
 
-//        test2()
+        try {
+
+//            TOGGLE TESTING WITH PEM/DER FILE
+            val publicKeyFileLoc =
+                "${Environment.getExternalStorageDirectory().absolutePath}/public-key.pem"
+//            val publicKeyFileLoc =
+//                "${Environment.getExternalStorageDirectory().absolutePath}/public-key.der"
+
+            val fis = FileInputStream(publicKeyFileLoc)
+            if (publicKeyFileLoc.endsWith(".pem", true)) {
+                isValid = verifyLicense(getPublicKeyFromPem(fis))
+            } else if (publicKeyFileLoc.endsWith(".der", true)) {
+                isValid = verifyLicense(getPublicKeyFromDer(fis))
+            } else {
+                Log.d("[ERROR]", "License file missing or invalid")
+            }
+        } catch (e: FileNotFoundException) {
+            Log.d("[ERROR]", "License file missing or invalid")
+        }
+
+        Log.d("[Is Valid]", " $isValid")
+
 
     }
 
-
-    fun getPublicKeyFromFile(fileLoc: String): PublicKey {
+    fun getPublicKeyFromPem(fis: FileInputStream): PublicKey {
         var line: String? = ""
         val stringBuilder = StringBuilder()
-        val inputStream: InputStream = FileInputStream(fileLoc)
-        val reader = BufferedReader(InputStreamReader(inputStream))
+        val reader = BufferedReader(InputStreamReader(fis))
 
         while (reader.readLine().also { line = it } != null) {
             if (line?.indexOf("-----BEGIN PUBLIC KEY-----") != -1) {
@@ -45,7 +63,7 @@ class MainActivity : AppCompatActivity() {
         if (line == null) {
             throw IOException("PUBLIC KEY" + " not found")
         }
-        inputStream.close()
+        fis.close()
 
         val test = stringBuilder.toString();
         Log.d("publickey", test)
@@ -53,34 +71,7 @@ class MainActivity : AppCompatActivity() {
         return keyFactory.generatePublic(X509EncodedKeySpec(Base64.decode(test, Base64.DEFAULT)))
     }
 
-    fun verifyLicense(): Boolean {
-        val signature: Signature = Signature.getInstance("SHA256withRSA")
-
-        val publicKeyFileLoc = "${Environment.getExternalStorageDirectory().absolutePath}/public-key.pem"
-        val publicKey = test2()
-        signature.initVerify(publicKey)
-
-        val licenseFileLoc = "${Environment.getExternalStorageDirectory().absolutePath}/livenesslicense.bin"
-        val sigfis = FileInputStream(licenseFileLoc)
-        val sigToVerify = ByteArray(sigfis.available())
-        sigfis.read(sigToVerify)
-        sigfis.close()
-
-        val datafis = this.resources.openRawResource(R.raw.asia_androidx_liveness)
-        val bufin = BufferedInputStream(datafis)
-
-        val buffer = ByteArray(1024)
-        var len: Int
-        while (bufin.available() !== 0) {
-            len = bufin.read(buffer)
-            signature.update(buffer, 0, len)
-        }
-
-        return signature.verify(sigToVerify)
-    }
-
-    fun getPublicKeyFromDer(filePath: String) : PublicKey{
-        val fis = FileInputStream(filePath)
+    fun getPublicKeyFromDer(fis: FileInputStream): PublicKey {
         val derInBytes = ByteArray(fis.available())
         fis.read(derInBytes)
         fis.close()
@@ -89,4 +80,32 @@ class MainActivity : AppCompatActivity() {
         val kf = KeyFactory.getInstance("RSA")
         return kf.generatePublic(spec)
     }
+
+    fun verifyLicense(publicKey: PublicKey): Boolean {
+        val signature: Signature = Signature.getInstance("SHA256withRSA")
+        signature.initVerify(publicKey)
+
+        val licenseFileLoc =
+            "${Environment.getExternalStorageDirectory().absolutePath}/livenesslicense.bin"
+        val sigfis = FileInputStream(licenseFileLoc)
+        val sigToVerify = ByteArray(sigfis.available())
+        sigfis.read(sigToVerify)
+        sigfis.close()
+
+//        RECREATE DATA IN THE SIGNED LICENSE FILE GIVEN TO CUSTOMER. THIS IS THE DATA TO VERIFY AGAINST THE LICENSE
+        val datafis = this.resources.openRawResource(R.raw.asia_androidx_liveness)
+        val bufin = BufferedInputStream(datafis)
+
+//        UPDATE THE SIGNATURE WITH THE DATA
+        val buffer = ByteArray(1024)
+        var len: Int
+        while (bufin.available() != 0) {
+            len = bufin.read(buffer)
+            signature.update(buffer, 0, len)
+        }
+
+//        PERFORM VERIFICATION
+        return signature.verify(sigToVerify)
+    }
+
 }
