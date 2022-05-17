@@ -10,4 +10,4 @@ openssl rsa -pubin -in public-key.pem -outform der -out public-key.der
 sign data file with private key and output binary file:
 openssl dgst -sha256 -sign private-key.pem asia-androidx-liveness.txt > livenesslicense.bin
 
-try mo paltaan yung content nung asia_androidx_liveness.txt under raw folder. This would return is Valid  = false
+try changing the content of asia_androidx_liveness.txt under raw folder. This would return is Valid  = false
